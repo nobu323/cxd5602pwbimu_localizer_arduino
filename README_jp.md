@@ -41,8 +41,8 @@
 1. **リポジトリのクローン:**
 
    ```bash
-   git clone https://github.com/yourusername/spresense-imu-self-localization.git
-   cd spresense-imu-self-localization
+   git clone https://github.com/hijimasa/cxd5602pwbimu_localizer_arduino.git
+   cd cxd5602pwbimu_localizer_arduino
    ```
 
 2. **Arduino IDEでプロジェクトを開く:**
