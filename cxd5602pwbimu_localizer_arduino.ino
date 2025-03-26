@@ -5,8 +5,7 @@
 #include <arch/board/cxd56_cxd5602pwbimu.h>
 #include <stdbool.h>
 
-
-#define CXD5602PWBIMU_DEVPATH      "/dev/imu0"
+#define CXD5602PWBIMU_DEVPATH "/dev/imu0"
 #define MAX_NFIFO (1)
 
 #define GRAVITY_AMOUNT 9.80665f
@@ -55,7 +54,9 @@ float mesuared_rotation_speed_x[LIST_SIZE];
 float mesuared_rotation_speed_y[LIST_SIZE];
 float mesuared_rotation_speed_z[LIST_SIZE];
 float quaternion[4] = {1.0, 0.0, 0.0, 0.0};
+float old_acceleration[3] = {0.0, 0.0, 0.0};
 float velocity[3] = {0.0, 0.0, 0.0};
+float old_velocity[3] = {0.0, 0.0, 0.0};
 float position[3] = {0.0, 0.0, 0.0};
 float current_gravity[3] = {0.0, 0.0, 0.0};
 int old_timestamp = -1;
@@ -490,12 +491,12 @@ void update(cxd5602pwbimu_data_t dat)
   estimated_acceleration_z = acceleration[2];
 
   // 速度・位置の更新（単純オイラー積分）
-  velocity[0] += (estimated_acceleration_x)*dt;
-  velocity[1] += (estimated_acceleration_y)*dt;
-  velocity[2] += (estimated_acceleration_z)*dt;
-  position[0] += velocity[0] * dt;
-  position[1] += velocity[1] * dt;
-  position[2] += velocity[2] * dt;
+  velocity[0] += (estimated_acceleration_x + old_acceleration[0]) / 2.0f * dt;
+  velocity[1] += (estimated_acceleration_y + old_acceleration[1]) / 2.0f * dt;
+  velocity[2] += (estimated_acceleration_z + old_acceleration[2]) / 2.0f * dt;
+  position[0] += (velocity[0] + old_velocity[0]) / 2.0f * dt;
+  position[1] += (velocity[1] + old_velocity[1]) / 2.0f * dt;
+  position[2] += (velocity[2] + old_velocity[2]) / 2.0f * dt;
 
   if (zero_velocity_correction(velocity, dt))
   {
@@ -503,6 +504,13 @@ void update(cxd5602pwbimu_data_t dat)
     velocity[1] = 0.0;
     velocity[2] = 0.0;
   }
+
+  old_acceleration[0] = estimated_acceleration_x;
+  old_acceleration[1] = estimated_acceleration_y;
+  old_acceleration[2] = estimated_acceleration_z;
+  old_velocity[0] = velocity[0];
+  old_velocity[1] = velocity[1];
+  old_velocity[2] = velocity[2];
 
   current_list_num = (current_list_num + 1) % LIST_SIZE;
 
@@ -529,20 +537,21 @@ static int drop_50msdata(int fd, int samprate)
   int cnt = samprate / 20; /* data size of 50ms */
 
   cnt = ((cnt + MAX_NFIFO - 1) / MAX_NFIFO) * MAX_NFIFO;
-  if (cnt == 0) cnt = MAX_NFIFO;
+  if (cnt == 0)
+    cnt = MAX_NFIFO;
 
   while (cnt)
-    {
-      read(fd, g_data, sizeof(g_data[0]) * MAX_NFIFO);
-      cnt -= MAX_NFIFO;
-    }
+  {
+    read(fd, g_data, sizeof(g_data[0]) * MAX_NFIFO);
+    cnt -= MAX_NFIFO;
+  }
 
   return 0;
 }
 
-void setup() 
+void setup()
 {
-  Serial.begin( 115200 );
+  Serial.begin(115200);
 
   board_cxd5602pwbimu_initialize(5);
 
@@ -555,7 +564,7 @@ void setup()
   while (!is_initialized)
   {
     ret = read(devfd, g_data, sizeof(g_data[0]) * MAX_NFIFO);
-    if(ret == sizeof(g_data[0]) * MAX_NFIFO) 
+    if (ret == sizeof(g_data[0]) * MAX_NFIFO)
     {
       for (int i = 0; i < MAX_NFIFO; i++)
       {
@@ -565,40 +574,42 @@ void setup()
   }
 }
 
-void loop() {
+void loop()
+{
   static int execute_counter = 0;
   ret = read(devfd, g_data, sizeof(g_data[0]) * MAX_NFIFO);
-  if(ret == sizeof(g_data[0]) * MAX_NFIFO) {
-    for(int i=0; i < MAX_NFIFO; i++)
+  if (ret == sizeof(g_data[0]) * MAX_NFIFO)
+  {
+    for (int i = 0; i < MAX_NFIFO; i++)
     {
       update(g_data[i]);
 
       execute_counter++;
       if (execute_counter >= MESUREMENT_FREQUENCY / 30)
       {
-        Serial.printf( "%08x,%08x,%08x,%08x,"
-             "%08x,%08x,%08x,%08x,"
-             "%08x,%08x,%08x,%08x,"
-             "%08x,%08x,%08x,"
-             "%08x,%08x,%08x\n",
-             (unsigned int)g_data[i].timestamp,
-             *(unsigned int *)&g_data[i].temp,
-             *(unsigned int *)&estimated_rotation_speed_x,
-             *(unsigned int *)&estimated_rotation_speed_y,
-             *(unsigned int *)&estimated_rotation_speed_z,
-             *(unsigned int *)&estimated_acceleration_x,
-             *(unsigned int *)&estimated_acceleration_y,
-             *(unsigned int *)&estimated_acceleration_z,
-             *(unsigned int *)&quaternion[0],
-             *(unsigned int *)&quaternion[1],
-             *(unsigned int *)&quaternion[2],
-             *(unsigned int *)&quaternion[3],
-             *(unsigned int *)&velocity[0],
-             *(unsigned int *)&velocity[1],
-             *(unsigned int *)&velocity[2],
-             *(unsigned int *)&position[0],
-             *(unsigned int *)&position[1],
-             *(unsigned int *)&position[2]);
+        Serial.printf("%08x,%08x,%08x,%08x,"
+                      "%08x,%08x,%08x,%08x,"
+                      "%08x,%08x,%08x,%08x,"
+                      "%08x,%08x,%08x,"
+                      "%08x,%08x,%08x\n",
+                      (unsigned int)g_data[i].timestamp,
+                      *(unsigned int *)&g_data[i].temp,
+                      *(unsigned int *)&estimated_rotation_speed_x,
+                      *(unsigned int *)&estimated_rotation_speed_y,
+                      *(unsigned int *)&estimated_rotation_speed_z,
+                      *(unsigned int *)&estimated_acceleration_x,
+                      *(unsigned int *)&estimated_acceleration_y,
+                      *(unsigned int *)&estimated_acceleration_z,
+                      *(unsigned int *)&quaternion[0],
+                      *(unsigned int *)&quaternion[1],
+                      *(unsigned int *)&quaternion[2],
+                      *(unsigned int *)&quaternion[3],
+                      *(unsigned int *)&velocity[0],
+                      *(unsigned int *)&velocity[1],
+                      *(unsigned int *)&velocity[2],
+                      *(unsigned int *)&position[0],
+                      *(unsigned int *)&position[1],
+                      *(unsigned int *)&position[2]);
         execute_counter = 0;
       }
     }
