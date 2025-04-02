@@ -348,7 +348,15 @@ void update(cxd5602pwbimu_data_t dat)
   }
   else
   {
-    dt = (dat.timestamp - old_timestamp) / 19200000.0f;
+    if (dat.timestamp > old_timestamp)
+    {
+      dt = (dat.timestamp - old_timestamp) / 19200000.0f;
+    }
+    else
+    {
+      old_timestamp = 0xFFFFFFFF - old_timestamp;
+      dt = (dat.timestamp + old_timestamp) / 19200000.0f;
+    }
     old_timestamp = dat.timestamp;
   }
 
@@ -417,7 +425,7 @@ void update(cxd5602pwbimu_data_t dat)
         step_acc[i] = 0.0;
         for (int j = 0; j < 3; j++)
         {
-          step_acc[i] += j_q_acc[i][j] * f_q_acc[j];
+          step_acc[i] += j_q_acc[j][i] * f_q_acc[j];
         }
       }
       float step_acc_norm = sqrt(step_acc[0] * step_acc[0] +
@@ -440,7 +448,7 @@ void update(cxd5602pwbimu_data_t dat)
         step_gyro[i] = 0.0;
         for (int j = 0; j < 3; j++)
         {
-          step_gyro[i] += j_q_gyro[i][j] * f_q_gyro[j];
+          step_gyro[i] += j_q_gyro[j][i] * f_q_gyro[j];
         }
       }
       float step_gyro_norm = sqrt(step_gyro[0] * step_gyro[0] +
