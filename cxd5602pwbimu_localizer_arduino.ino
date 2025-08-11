@@ -559,7 +559,7 @@ static int drop_50msdata(int fd, int samprate)
 
 void setup()
 {
-  Serial.begin(115200);
+  Serial.begin(1152000);
 
   board_cxd5602pwbimu_initialize(5);
 
@@ -593,7 +593,7 @@ void loop()
       update(g_data[i]);
 
       execute_counter++;
-      if (execute_counter >= MESUREMENT_FREQUENCY / 30)
+      if (execute_counter >= MESUREMENT_FREQUENCY / 200)
       {
         Serial.printf("%08x,%08x,%08x,%08x,"
                       "%08x,%08x,%08x,%08x,"
