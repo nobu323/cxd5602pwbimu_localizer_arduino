@@ -591,35 +591,29 @@ void loop()
     for (int i = 0; i < MAX_NFIFO; i++)
     {
       update(g_data[i]);
-
-      execute_counter++;
-      if (execute_counter >= MESUREMENT_FREQUENCY / 200)
-      {
-        Serial.printf("%08x,%08x,%08x,%08x,"
-                      "%08x,%08x,%08x,%08x,"
-                      "%08x,%08x,%08x,%08x,"
-                      "%08x,%08x,%08x,"
-                      "%08x,%08x,%08x\n",
-                      (unsigned int)g_data[i].timestamp,
-                      *(unsigned int *)&g_data[i].temp,
-                      *(unsigned int *)&estimated_rotation_speed_x,
-                      *(unsigned int *)&estimated_rotation_speed_y,
-                      *(unsigned int *)&estimated_rotation_speed_z,
-                      *(unsigned int *)&estimated_acceleration_x,
-                      *(unsigned int *)&estimated_acceleration_y,
-                      *(unsigned int *)&estimated_acceleration_z,
-                      *(unsigned int *)&quaternion[0],
-                      *(unsigned int *)&quaternion[1],
-                      *(unsigned int *)&quaternion[2],
-                      *(unsigned int *)&quaternion[3],
-                      *(unsigned int *)&velocity[0],
-                      *(unsigned int *)&velocity[1],
-                      *(unsigned int *)&velocity[2],
-                      *(unsigned int *)&position[0],
-                      *(unsigned int *)&position[1],
-                      *(unsigned int *)&position[2]);
-        execute_counter = 0;
-      }
+      Serial.printf("%08x,%08x,%08x,%08x,"
+                    "%08x,%08x,%08x,%08x,"
+                    "%08x,%08x,%08x,%08x,"
+                    "%08x,%08x,%08x,"
+                    "%08x,%08x,%08x\n",
+                    (unsigned int)g_data[i].timestamp,
+                    *(unsigned int *)&g_data[i].temp,
+                    *(unsigned int *)&estimated_rotation_speed_x,
+                    *(unsigned int *)&estimated_rotation_speed_y,
+                    *(unsigned int *)&estimated_rotation_speed_z,
+                    *(unsigned int *)&estimated_acceleration_x,
+                    *(unsigned int *)&estimated_acceleration_y,
+                    *(unsigned int *)&estimated_acceleration_z,
+                    *(unsigned int *)&quaternion[0],
+                    *(unsigned int *)&quaternion[1],
+                    *(unsigned int *)&quaternion[2],
+                    *(unsigned int *)&quaternion[3],
+                    *(unsigned int *)&velocity[0],
+                    *(unsigned int *)&velocity[1],
+                    *(unsigned int *)&velocity[2],
+                    *(unsigned int *)&position[0],
+                    *(unsigned int *)&position[1],
+                    *(unsigned int *)&position[2]);
     }
   }
 }
