@@ -31,6 +31,42 @@
 #define ACC_MADGWICK_FILTER_WEIGHT 0.11f //(sqrt(3.0f / 4.0f) * GYRO_NOISE_AMOUNT / ACCEL_NOISE_AMOUNT)
 #define GYRO_MADGWICK_FILTER_WEIGHT 0.00000001f
 
+// New struct and constants for binary protocol
+struct IMUData {
+  uint32_t timestamp;
+  float temp;
+  float angular_velocity_x;
+  float angular_velocity_y;
+  float angular_velocity_z;
+  float linear_acceleration_x;
+  float linear_acceleration_y;
+  float linear_acceleration_z;
+  float raw_linear_acceleration_x;
+  float raw_linear_acceleration_y;
+  float raw_linear_acceleration_z;
+  float quat_w;
+  float quat_x;
+  float quat_y;
+  float quat_z;
+  float velocity_x;
+  float velocity_y;
+  float velocity_z;
+  float position_x;
+  float position_y;
+  float position_z;
+};
+
+const uint8_t HEADER[] = {0x5A, 0xA5};
+
+uint8_t calculate_checksum(const uint8_t* data, size_t len) {
+  uint8_t checksum = 0;
+  for (size_t i = 0; i < len; i++) {
+    checksum ^= data[i];
+  }
+  return checksum;
+}
+
+
 static cxd5602pwbimu_data_t g_data[MAX_NFIFO];
 int devfd;
 int ret;
@@ -591,29 +627,34 @@ void loop()
     for (int i = 0; i < MAX_NFIFO; i++)
     {
       update(g_data[i]);
-      Serial.printf("%08x,%08x,%08x,%08x,"
-                    "%08x,%08x,%08x,%08x,"
-                    "%08x,%08x,%08x,%08x,"
-                    "%08x,%08x,%08x,"
-                    "%08x,%08x,%08x\n",
-                    (unsigned int)g_data[i].timestamp,
-                    *(unsigned int *)&g_data[i].temp,
-                    *(unsigned int *)&estimated_rotation_speed_x,
-                    *(unsigned int *)&estimated_rotation_speed_y,
-                    *(unsigned int *)&estimated_rotation_speed_z,
-                    *(unsigned int *)&estimated_acceleration_x,
-                    *(unsigned int *)&estimated_acceleration_y,
-                    *(unsigned int *)&estimated_acceleration_z,
-                    *(unsigned int *)&quaternion[0],
-                    *(unsigned int *)&quaternion[1],
-                    *(unsigned int *)&quaternion[2],
-                    *(unsigned int *)&quaternion[3],
-                    *(unsigned int *)&velocity[0],
-                    *(unsigned int *)&velocity[1],
-                    *(unsigned int *)&velocity[2],
-                    *(unsigned int *)&position[0],
-                    *(unsigned int *)&position[1],
-                    *(unsigned int *)&position[2]);
+      IMUData data_packet;
+      data_packet.timestamp = g_data[i].timestamp;
+      data_packet.temp = g_data[i].temp;
+      data_packet.angular_velocity_x = estimated_rotation_speed_x;
+      data_packet.angular_velocity_y = estimated_rotation_speed_y;
+      data_packet.angular_velocity_z = estimated_rotation_speed_z;
+      data_packet.linear_acceleration_x = estimated_acceleration_x;
+      data_packet.linear_acceleration_y = estimated_acceleration_y;
+      data_packet.linear_acceleration_z = estimated_acceleration_z;
+      data_packet.raw_linear_acceleration_x = g_data[i].ax;
+      data_packet.raw_linear_acceleration_y = g_data[i].ay;
+      data_packet.raw_linear_acceleration_z = g_data[i].az;
+      data_packet.quat_w = quaternion[0];
+      data_packet.quat_x = quaternion[1];
+      data_packet.quat_y = quaternion[2];
+      data_packet.quat_z = quaternion[3];
+      data_packet.velocity_x = velocity[0];
+      data_packet.velocity_y = velocity[1];
+      data_packet.velocity_z = velocity[2];
+      data_packet.position_x = position[0];
+      data_packet.position_y = position[1];
+      data_packet.position_z = position[2];
+
+      uint8_t checksum = calculate_checksum((const uint8_t*)&data_packet, sizeof(data_packet));
+
+      Serial.write(HEADER, sizeof(HEADER));
+      Serial.write((const uint8_t*)&data_packet, sizeof(data_packet));
+      Serial.write(&checksum, sizeof(checksum));
     }
   }
 }
