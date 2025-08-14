@@ -18,6 +18,11 @@
 #define ACCEL_NOISE_AMOUNT (ACCEL_NOISE_DENSITY * sqrt(MESUREMENT_FREQUENCY))
 #define ACCEL_BIAS_DRIFT (4.43e-6 * GRAVITY_AMOUNT * 3.0f)
 #define GYRO_BIAS_DRIFT (0.39f * M_PI / 180.0f)
+
+// Data transmission rate control
+// Send data once per this many internal updates.
+// 1920Hz / 5 = 384Hz
+const int SEND_DATA_RATIO = 5;
 // 観測ノイズの分散
 #define GYRO_OBSERVATION_NOISE_VARIANCE (GYRO_NOISE_AMOUNT * GYRO_NOISE_AMOUNT)
 #define ACCEL_OBSERVATION_NOISE_VARIANCE (ACCEL_NOISE_AMOUNT * ACCEL_NOISE_AMOUNT)
@@ -32,7 +37,7 @@
 #define GYRO_MADGWICK_FILTER_WEIGHT 0.00000001f
 
 // New struct and constants for binary protocol
-struct IMUData {
+struct __attribute__((packed)) IMUData {
   uint32_t timestamp;
   float temp;
   float angular_velocity_x;
@@ -56,7 +61,7 @@ struct IMUData {
   float position_z;
 };
 
-const uint8_t HEADER[] = {0x5A, 0xA5};
+const uint8_t HEADER[] = {0xAA, 0xBB, 0xCC, 0xDD};
 
 uint8_t calculate_checksum(const uint8_t* data, size_t len) {
   uint8_t checksum = 0;
@@ -596,6 +601,8 @@ static int drop_50msdata(int fd, int samprate)
 void setup()
 {
   Serial.begin(1152000);
+  Serial.print("sizeof(IMUData): ");
+  Serial.println(sizeof(IMUData));
 
   board_cxd5602pwbimu_initialize(5);
 
@@ -627,34 +634,42 @@ void loop()
     for (int i = 0; i < MAX_NFIFO; i++)
     {
       update(g_data[i]);
-      IMUData data_packet;
-      data_packet.timestamp = g_data[i].timestamp;
-      data_packet.temp = g_data[i].temp;
-      data_packet.angular_velocity_x = estimated_rotation_speed_x;
-      data_packet.angular_velocity_y = estimated_rotation_speed_y;
-      data_packet.angular_velocity_z = estimated_rotation_speed_z;
-      data_packet.linear_acceleration_x = estimated_acceleration_x;
-      data_packet.linear_acceleration_y = estimated_acceleration_y;
-      data_packet.linear_acceleration_z = estimated_acceleration_z;
-      data_packet.raw_linear_acceleration_x = g_data[i].ax;
-      data_packet.raw_linear_acceleration_y = g_data[i].ay;
-      data_packet.raw_linear_acceleration_z = g_data[i].az;
-      data_packet.quat_w = quaternion[0];
-      data_packet.quat_x = quaternion[1];
-      data_packet.quat_y = quaternion[2];
-      data_packet.quat_z = quaternion[3];
-      data_packet.velocity_x = velocity[0];
-      data_packet.velocity_y = velocity[1];
-      data_packet.velocity_z = velocity[2];
-      data_packet.position_x = position[0];
-      data_packet.position_y = position[1];
-      data_packet.position_z = position[2];
 
-      uint8_t checksum = calculate_checksum((const uint8_t*)&data_packet, sizeof(data_packet));
+      execute_counter++;
+      if (execute_counter >= SEND_DATA_RATIO)
+      {
+        execute_counter = 0; // Reset counter
 
-      Serial.write(HEADER, sizeof(HEADER));
-      Serial.write((const uint8_t*)&data_packet, sizeof(data_packet));
-      Serial.write(&checksum, sizeof(checksum));
+        IMUData data_packet;
+        data_packet.timestamp = g_data[i].timestamp;
+        data_packet.temp = g_data[i].temp;
+        data_packet.angular_velocity_x = estimated_rotation_speed_x;
+        data_packet.angular_velocity_y = estimated_rotation_speed_y;
+        data_packet.angular_velocity_z = estimated_rotation_speed_z;
+        data_packet.linear_acceleration_x = estimated_acceleration_x;
+        data_packet.linear_acceleration_y = estimated_acceleration_y;
+        data_packet.linear_acceleration_z = estimated_acceleration_z;
+        data_packet.raw_linear_acceleration_x = g_data[i].ax;
+        data_packet.raw_linear_acceleration_y = g_data[i].ay;
+        data_packet.raw_linear_acceleration_z = g_data[i].az;
+        data_packet.quat_w = quaternion[0];
+        data_packet.quat_x = quaternion[1];
+        data_packet.quat_y = quaternion[2];
+        data_packet.quat_z = quaternion[3];
+        data_packet.velocity_x = velocity[0];
+        data_packet.velocity_y = velocity[1];
+        data_packet.velocity_z = velocity[2];
+        data_packet.position_x = position[0];
+        data_packet.position_y = position[1];
+        data_packet.position_z = position[2];
+
+        uint8_t checksum = calculate_checksum((const uint8_t*)&data_packet, sizeof(data_packet));
+        uint8_t packet[sizeof(HEADER) + sizeof(data_packet) + 1];
+        memcpy(packet, HEADER, sizeof(HEADER));
+        memcpy(packet + sizeof(HEADER), &data_packet, sizeof(data_packet));
+        packet[sizeof(HEADER) + sizeof(data_packet)] = checksum;
+        Serial.write(packet, sizeof(packet));
+      }
     }
   }
 }
