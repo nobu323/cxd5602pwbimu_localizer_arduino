@@ -4,6 +4,7 @@
 #include <nuttx/sensors/cxd5602pwbimu.h>
 #include <arch/board/cxd56_cxd5602pwbimu.h>
 #include <stdbool.h>
+#include <string.h>
 
 #define CXD5602PWBIMU_DEVPATH "/dev/imu0"
 #define MAX_NFIFO (1)
@@ -625,8 +626,65 @@ void setup()
   }
 }
 
+void reset_pose()
+{
+  // Reset state variables
+  quaternion[0] = 1.0f;
+  quaternion[1] = 0.0f;
+  quaternion[2] = 0.0f;
+  quaternion[3] = 0.0f;
+
+  velocity[0] = 0.0f;
+  velocity[1] = 0.0f;
+  velocity[2] = 0.0f;
+
+  position[0] = 0.0f;
+  position[1] = 0.0f;
+  position[2] = 0.0f;
+
+  old_acceleration[0] = 0.0f;
+  old_acceleration[1] = 0.0f;
+  old_acceleration[2] = 0.0f;
+
+  old_velocity[0] = 0.0f;
+  old_velocity[1] = 0.0f;
+  old_velocity[2] = 0.0f;
+
+  current_gravity[0] = 0.0f;
+  current_gravity[1] = 0.0f;
+  current_gravity[2] = 0.0f;
+
+  old_timestamp = -1;
+  calibrate_counter = 0;
+  zero_velocity_counter = 0;
+  biased_velocity = 0.0f;
+  current_list_num = 0;
+
+  // Re-run initialization
+  bool is_reinitialized = false;
+  while (!is_reinitialized)
+  {
+    ret = read(devfd, g_data, sizeof(g_data[0]) * MAX_NFIFO);
+    if (ret == sizeof(g_data[0]) * MAX_NFIFO)
+    {
+      for (int i = 0; i < MAX_NFIFO; i++)
+      {
+        is_reinitialized = imu_data_initialize(g_data[i]);
+      }
+    }
+  }
+}
+
 void loop()
 {
+  if (Serial.available() >= 4) {
+    char cmd[5] = {0};
+    Serial.readBytes(cmd, 4);
+    if (strcmp(cmd, "REST") == 0) {
+      reset_pose();
+    }
+  }
+
   static int execute_counter = 0;
   ret = read(devfd, g_data, sizeof(g_data[0]) * MAX_NFIFO);
   if (ret == sizeof(g_data[0]) * MAX_NFIFO)
